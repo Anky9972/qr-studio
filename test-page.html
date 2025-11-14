@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code Test Page</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .instructions {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .qr-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .qr-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .qr-card img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .qr-card h3 {
+      margin: 15px 0 10px;
+      color: #0078d4;
+      font-size: 16px;
+    }
+    .qr-card p {
+      color: #666;
+      font-size: 14px;
+      margin: 0;
+    }
+    .code {
+      background: #f0f0f0;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+      word-break: break-all;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 QR Studio Test Page</h1>
+  
+  <div class="instructions">
+    <h2>How to Test Your Extension:</h2>
+    <ol>
+      <li>Click the QR Studio extension icon in your browser toolbar</li>
+      <li>Click <strong>"Scan Page"</strong> - it should detect all QR codes below</li>
+      <li>Try <strong>right-clicking</strong> any QR code image → "Scan QR Code"</li>
+      <li>Use keyboard shortcut <strong>Ctrl+Shift+Q</strong> to scan the page</li>
+      <li>Test the <strong>camera scanner</strong> by pointing it at these codes</li>
+    </ol>
+  </div>
+
+  <div class="qr-grid">
+    <!-- Sample QR Codes -->
+    <div class="qr-card">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://github.com" alt="GitHub QR Code">
+      <h3>GitHub URL</h3>
+      <p>Scan to visit GitHub</p>
+      <div class="code">https://github.com</div>
+    </div>
+
+    <div class="qr-card">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=Hello%20from%20QR%20Studio!" alt="Text QR Code">
+      <h3>Text Message</h3>
+      <p>Simple text QR code</p>
+      <div class="code">Hello from QR Studio!</div>
+    </div>
+
+    <div class="qr-card">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://www.google.com" alt="Google QR Code">
+      <h3>Google URL</h3>
+      <p>Scan to visit Google</p>
+      <div class="code">https://www.google.com</div>
+    </div>
+
+    <div class="qr-card">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=mailto:test@example.com" alt="Email QR Code">
+      <h3>Email Address</h3>
+      <p>Scan to email</p>
+      <div class="code">mailto:test@example.com</div>
+    </div>
+
+    <div class="qr-card">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=tel:+1234567890" alt="Phone QR Code">
+      <h3>Phone Number</h3>
+      <p>Scan to call</p>
+      <div class="code">tel:+1234567890</div>
+    </div>
+
+    <div class="qr-card">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=WIFI:T:WPA;S:MyNetwork;P:MyPassword123;;" alt="WiFi QR Code">
+      <h3>WiFi Network</h3>
+      <p>WiFi configuration code</p>
+      <div class="code">WIFI:T:WPA;S:MyNetwork;P:MyPassword123;;</div>
+    </div>
+  </div>
+
+  <div class="instructions" style="margin-top: 40px;">
+    <h2>📝 Test Checklist:</h2>
+    <ul>
+      <li>✅ Page scanning detects all 6 QR codes</li>
+      <li>✅ Right-click context menu works on images</li>
+      <li>✅ Clicking results opens URLs or copies text</li>
+      <li>✅ WiFi QR code shows network details</li>
+      <li>✅ All scans appear in History tab</li>
+      <li>✅ Theme toggle works (light/dark)</li>
+      <li>✅ Camera scanner detects codes in real-time</li>
+      <li>✅ QR generation works with custom text</li>
+      <li>✅ Download and copy functions work</li>
+    </ul>
+  </div>
+</body>
+</html>

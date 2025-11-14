@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'self'">
+  <title>QR Studio</title>
+  <!-- Load jsQR library before modules -->
+  <script src="/lib/jsQR.min.js"></script>
+  <!-- Load ZXing library for barcode support -->
+  <script src="/lib/zxing.min.js"></script>
+  <style>
+    body {
+      width: 420px;
+      min-height: 500px;
+      max-height: 600px;
+      margin: 0;
+      padding: 0;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>

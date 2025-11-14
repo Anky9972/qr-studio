@@ -1,0 +1,522 @@
+import React, { useState, useRef } from 'react';
+import QRCode from 'qrcode';
+import Papa from 'papaparse';
+
+function GenerateTab({ theme }) {
+  const [inputText, setInputText] = useState('');
+  const [qrSize, setQrSize] = useState(512);
+  const [errorCorrection, setErrorCorrection] = useState('M');
+  const [qrDataURL, setQrDataURL] = useState('');
+  const [generating, setGenerating] = useState(false);
+  // const [bulkMode, setBulkMode] = useState(false);
+  // const [bulkData, setBulkData] = useState([]);
+  // const [bulkResults, setBulkResults] = useState([]);
+  // const [bulkGenerating, setBulkGenerating] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const surfaceClass = theme === 'dark' ? 'bg-dark-surface' : 'bg-light-surface';
+  const borderClass = theme === 'dark' ? 'border-dark-border' : 'border-light-border';
+  const accentClass = theme === 'dark' ? 'bg-dark-accent' : 'bg-light-accent';
+  const textSecondaryClass = theme === 'dark' ? 'text-dark-text-secondary' : 'text-light-text-secondary';
+  const inputBgClass = theme === 'dark' ? 'bg-dark-bg' : 'bg-light-bg';
+
+  useEffect(() => {
+    // Check for pending generate from context menu
+    chrome.storage.local.get(['pendingGenerate'], (result) => {
+      if (result.pendingGenerate) {
+        // Clear the pending generate
+        chrome.storage.local.remove(['pendingGenerate'], () => {
+          setInputText(result.pendingGenerate);
+        });
+      }
+    });
+  }, []);
+
+  const generateQRCode = async () => {
+    if (!inputText.trim()) {
+      alert('Please enter some text or URL');
+      return;
+    }
+
+    setGenerating(true);
+
+    try {
+      const canvas = canvasRef.current;
+      await QRCode.toCanvas(canvas, inputText, {
+        width: qrSize,
+        errorCorrectionLevel: errorCorrection,
+        margin: 2,
+        color: {
+          dark: theme === 'dark' ? '#ffffff' : '#000000',
+          light: theme === 'dark' ? '#2b2b2b' : '#ffffff',
+        },
+      });
+
+      const dataURL = canvas.toDataURL('image/png');
+      setQrDataURL(dataURL);
+
+      // Save to history
+      saveToHistory('generate', inputText, dataURL);
+    } catch (err) {
+      alert('Error generating QR code: ' + err.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      alert('Please select a CSV or Excel file');
+      return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.errors.length > 0) {
+          alert('Error parsing file: ' + results.errors[0].message);
+          return;
+        }
+
+        const data = results.data.filter(row => row.text || row.data || row.content);
+        if (data.length === 0) {
+          alert('No valid data found. Please ensure your CSV has a column named "text", "data", or "content"');
+          return;
+        }
+
+        setBulkData(data);
+        setBulkResults([]);
+      },
+      error: (error) => {
+        alert('Error reading file: ' + error.message);
+      }
+    });
+  };
+
+  const generateBulkQRCodes = async () => {
+    if (bulkData.length === 0) {
+      alert('Please upload a CSV file first');
+      return;
+    }
+
+    setBulkGenerating(true);
+    setBulkResults([]);
+
+    const results = [];
+    const canvas = canvasRef.current;
+
+    for (let i = 0; i < bulkData.length; i++) {
+      const row = bulkData[i];
+      const text = row.text || row.data || row.content || '';
+
+      if (!text.trim()) continue;
+
+      try {
+        await QRCode.toCanvas(canvas, text, {
+          width: qrSize,
+          errorCorrectionLevel: errorCorrection,
+          margin: 2,
+          color: {
+            dark: theme === 'dark' ? '#ffffff' : '#000000',
+            light: theme === 'dark' ? '#2b2b2b' : '#ffffff',
+          },
+        });
+
+        const dataURL = canvas.toDataURL('image/png');
+        results.push({
+          text,
+          dataURL,
+          index: i + 1,
+          ...row
+        });
+
+        // Save to history
+        saveToHistory('generate', text, dataURL);
+
+        // Update progress
+        setBulkResults([...results]);
+
+      } catch (err) {
+        console.error('Error generating QR for row', i + 1, err);
+        results.push({
+          text,
+          error: err.message,
+          index: i + 1,
+          ...row
+        });
+      }
+    }
+
+    setBulkGenerating(false);
+    setBulkResults(results);
+  };
+
+  const downloadBulkResults = () => {
+    if (bulkResults.length === 0) return;
+
+    // Create a zip file or individual downloads
+    bulkResults.forEach((result, index) => {
+      if (result.dataURL) {
+        const link = document.createElement('a');
+        link.download = `qr-code-${index + 1}.png`;
+        link.href = result.dataURL;
+        link.click();
+      }
+    });
+  };
+
+  const saveToHistory = (type, data, imageURL) => {
+    const entry = {
+      type,
+      data,
+      imageURL,
+      timestamp: Date.now(),
+    };
+
+    chrome.storage.local.get(['history'], (result) => {
+      const history = result.history || [];
+      history.unshift(entry);
+      const limitedHistory = history.slice(0, 100);
+      chrome.storage.local.set({ history: limitedHistory });
+    });
+  };
+
+  const downloadQRCode = () => {
+    if (!qrDataURL) return;
+
+    const link = document.createElement('a');
+    link.download = `qr-code-${Date.now()}.png`;
+    link.href = qrDataURL;
+    link.click();
+  };
+
+  const copyToClipboard = async () => {
+    if (!qrDataURL) return;
+
+    try {
+      // Try modern clipboard API first
+      const blob = await (await fetch(qrDataURL)).blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob }),
+      ]);
+      alert('QR code copied to clipboard!');
+    } catch (err) {
+      console.error('Clipboard error:', err);
+      // Fallback: try copying the data URL as text
+      try {
+        await navigator.clipboard.writeText(qrDataURL);
+        alert('QR code data URL copied to clipboard!');
+      } catch (err2) {
+        alert('Failed to copy to clipboard. Please try downloading instead.');
+      }
+    }
+  };
+
+  const generateWiFiQR = () => {
+    const ssid = prompt('Enter WiFi network name (SSID):');
+    if (!ssid) return;
+
+    const password = prompt('Enter WiFi password:');
+    const security = prompt('Enter security type (WPA, WEP, or leave empty for none):', 'WPA');
+
+    const wifiString = `WIFI:T:${security || 'nopass'};S:${ssid};P:${password || ''};;`;
+    setInputText(wifiString);
+  };
+
+  const generateVCardQR = () => {
+    const name = prompt('Enter full name:');
+    if (!name) return;
+
+    const phone = prompt('Enter phone number:');
+    const email = prompt('Enter email address:');
+    const company = prompt('Enter company/organization:');
+    const title = prompt('Enter job title:');
+
+    let vcard = 'BEGIN:VCARD\nVERSION:3.0\n';
+    vcard += `FN:${name}\n`;
+    if (phone) vcard += `TEL:${phone}\n`;
+    if (email) vcard += `EMAIL:${email}\n`;
+    if (company) vcard += `ORG:${company}\n`;
+    if (title) vcard += `TITLE:${title}\n`;
+    vcard += 'END:VCARD';
+
+    setInputText(vcard);
+  };
+
+  const generateSMSQR = () => {
+    const phone = prompt('Enter phone number:');
+    if (!phone) return;
+
+    const message = prompt('Enter SMS message:');
+    const smsString = `SMSTO:${phone}:${message || ''}`;
+    setInputText(smsString);
+  };
+
+  const generateEmailQR = () => {
+    const email = prompt('Enter email address:');
+    if (!email) return;
+
+    const subject = prompt('Enter email subject:');
+    const body = prompt('Enter email body:');
+
+    let mailto = `mailto:${email}`;
+    const params = [];
+    if (subject) params.push(`subject=${encodeURIComponent(subject)}`);
+    if (body) params.push(`body=${encodeURIComponent(body)}`);
+    if (params.length > 0) mailto += `?${params.join('&')}`;
+
+    setInputText(mailto);
+  };
+
+  const generateCalendarQR = () => {
+    const title = prompt('Enter event title:');
+    if (!title) return;
+
+    const startDate = prompt('Enter start date/time (YYYYMMDDTHHMMSS):');
+    const endDate = prompt('Enter end date/time (YYYYMMDDTHHMMSS):');
+    const location = prompt('Enter event location:');
+    const description = prompt('Enter event description:');
+
+    let calendar = 'BEGIN:VEVENT\n';
+    calendar += `SUMMARY:${title}\n`;
+    if (startDate) calendar += `DTSTART:${startDate}\n`;
+    if (endDate) calendar += `DTEND:${endDate}\n`;
+    if (location) calendar += `LOCATION:${location}\n`;
+    if (description) calendar += `DESCRIPTION:${description}\n`;
+    calendar += 'END:VEVENT';
+
+    setInputText(calendar);
+  };
+
+  const generateLocationQR = () => {
+    const latitude = prompt('Enter latitude:');
+    if (!latitude) return;
+
+    const longitude = prompt('Enter longitude:');
+    if (!longitude) return;
+
+    const locationString = `geo:${latitude},${longitude}`;
+    setInputText(locationString);
+  };
+
+  return (
+    <div className="p-4 h-full overflow-y-auto">
+      <div className="space-y-4">
+        {/* Mode Toggle - Bulk mode coming soon */}
+        <div className={`${surfaceClass} p-4 rounded-fluent border ${borderClass}`}>
+          <label className={`block text-sm font-medium ${textSecondaryClass} mb-2`}>
+            Generation Mode
+          </label>
+          <div className="flex gap-2">
+            <button
+              className={`flex-1 py-2 px-3 rounded-fluent font-medium ${
+                !bulkMode
+                  ? `${accentClass} text-white`
+                  : `${inputBgClass} ${textSecondaryClass} hover:${accentClass} hover:text-white`
+              }`}
+            >
+              📝 Single QR
+            </button>
+            <button
+              disabled
+              className={`flex-1 py-2 px-3 rounded-fluent font-medium opacity-50 cursor-not-allowed ${
+                inputBgClass} ${textSecondaryClass}
+              }`}
+            >
+              📊 Bulk Generate (Soon)
+            </button>
+          </div>
+        </div>
+
+        {bulkMode && (
+          /* Bulk Generation Mode */
+          <div className="space-y-4">
+            {/* File Upload */}
+            <div className={`${surfaceClass} p-4 rounded-fluent border ${borderClass}`}>
+              <label className={`block text-sm font-medium ${textSecondaryClass} mb-2`}>
+                Upload CSV/Excel File
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileUpload}
+                className={`w-full ${inputBgClass} border ${borderClass} rounded-fluent p-3 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
+                  theme === 'dark' ? 'focus:ring-dark-accent' : 'focus:ring-light-accent'
+                }`}
+              />
+              <p className={`text-xs ${textSecondaryClass} mt-1`}>
+                CSV should have a column named "text", "data", or "content"
+              </p>
+            </div>
+
+            {/* Bulk Data Preview */}
+            {bulkData.length > 0 && (
+              <div className={`${surfaceClass} p-4 rounded-fluent border ${borderClass}`}>
+                <h3 className="font-medium mb-2">Data Preview ({bulkData.length} items)</h3>
+                <div className="max-h-32 overflow-y-auto">
+                  {bulkData.slice(0, 5).map((row, index) => (
+                    <div key={index} className={`text-sm p-2 rounded ${inputBgClass} mb-1`}>
+                      {row.text || row.data || row.content || 'No content'}
+                    </div>
+                  ))}
+                  {bulkData.length > 5 && (
+                    <div className={`text-sm ${textSecondaryClass} p-2`}>
+                      ... and {bulkData.length - 5} more items
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Bulk Results */}
+            {bulkResults.length > 0 && (
+              <div className={`${surfaceClass} p-4 rounded-fluent border ${borderClass}`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-medium">Generated QR Codes ({bulkResults.length})</h3>
+                  <button
+                    onClick={downloadBulkResults}
+                    className={`${accentClass} text-white px-4 py-2 rounded-fluent font-medium text-sm`}
+                  >
+                    📥 Download All
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                  {bulkResults.map((result, index) => (
+                    <div key={index} className={`${inputBgClass} p-3 rounded-fluent`}>
+                      {result.dataURL ? (
+                        <img src={result.dataURL} alt={`QR ${index + 1}`} className="w-full h-auto" />
+                      ) : (
+                        <div className="text-red-500 text-sm">Error: {result.error}</div>
+                      )}
+                      <div className={`text-xs ${textSecondaryClass} mt-2 truncate`}>
+                        {result.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Generate Button */}
+            <button
+              onClick={generateBulkQRCodes}
+              disabled={bulkGenerating || bulkData.length === 0}
+              className={`${accentClass} text-white py-3 px-4 rounded-fluent font-medium fluent-button disabled:opacity-50 w-full`}
+            >
+              {bulkGenerating ? '⏳ Generating...' : `🚀 Generate ${bulkData.length} QR Codes`}
+            </button>
+          </div>
+        )}
+
+        {/* Single Generation Mode */}
+          <div>
+            {/* Input Area */}
+        <button
+          onClick={generateWiFiQR}
+          className={`text-sm ${textSecondaryClass} hover:underline`}
+        >
+          📡 Generate WiFi QR Code
+        </button>
+
+        {/* Settings */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-2">Size:</label>
+            <select
+              value={qrSize}
+              onChange={(e) => setQrSize(Number(e.target.value))}
+              className={`w-full ${inputBgClass} ${surfaceClass} border ${borderClass} rounded-fluent p-2 text-body focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
+                theme === 'dark' ? 'focus:ring-dark-accent' : 'focus:ring-light-accent'
+              }`}
+            >
+              <option value={256}>256px</option>
+              <option value={512}>512px</option>
+              <option value={1024}>1024px</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Error Correction:</label>
+            <select
+              value={errorCorrection}
+              onChange={(e) => setErrorCorrection(e.target.value)}
+              className={`w-full ${inputBgClass} ${surfaceClass} border ${borderClass} rounded-fluent p-2 text-body focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
+                theme === 'dark' ? 'focus:ring-dark-accent' : 'focus:ring-light-accent'
+              }`}
+            >
+              <option value="L">Low (7%)</option>
+              <option value="M">Medium (15%)</option>
+              <option value="Q">Quartile (25%)</option>
+              <option value="H">High (30%)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Generate Button */}
+        <button
+          onClick={generateQRCode}
+          disabled={generating || !inputText.trim()}
+          className={`w-full ${accentClass} text-white py-3 px-4 rounded-fluent font-medium fluent-button disabled:opacity-50`}
+        >
+          {generating ? '⏳ Generating...' : '✨ Generate QR Code'}
+        </button>
+
+        {/* QR Code Preview */}
+        {qrDataURL && (
+          <div className={`${surfaceClass} p-4 rounded-fluent border ${borderClass} fade-in`}>
+            <div className="flex justify-center mb-4">
+              <img 
+                src={qrDataURL} 
+                alt="Generated QR Code" 
+                className="rounded-fluent shadow-fluent max-w-full"
+                style={{ width: `${Math.min(qrSize, 400)}px`, height: 'auto' }}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={downloadQRCode}
+                className={`${surfaceClass} border ${borderClass} py-2 px-4 rounded-fluent font-medium hover:bg-opacity-10 ${
+                  theme === 'dark' ? 'hover:bg-white' : 'hover:bg-black'
+                } transition-all duration-fluent`}
+              >
+                💾 Download
+              </button>
+              <button
+                onClick={copyToClipboard}
+                className={`${surfaceClass} border ${borderClass} py-2 px-4 rounded-fluent font-medium hover:bg-opacity-10 ${
+                  theme === 'dark' ? 'hover:bg-white' : 'hover:bg-black'
+                } transition-all duration-fluent`}
+              >
+                📋 Copy
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Canvas for QR generation (kept in DOM for QRCode library) */}
+        <canvas ref={canvasRef} className="hidden" />
+
+        {/* Instructions */}
+        {!qrDataURL && (
+          <div className={`${surfaceClass} p-4 rounded-fluent border ${borderClass}`}>
+            <h3 className="font-semibold mb-2">Tips:</h3>
+            <ul className={`text-sm ${textSecondaryClass} space-y-1`}>
+              <li>• URLs will be auto-detected and can be opened directly</li>
+              <li>• Use WiFi helper to create network QR codes</li>
+              <li>• Higher error correction = more damage resistant</li>
+              <li>• Larger sizes = better scanning from distance</li>
+            </ul>
+          </div>
+      </div>
+    </div>
+  );
+}
+
+export default GenerateTab;
