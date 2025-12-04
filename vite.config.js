@@ -105,6 +105,7 @@ export default defineConfig({
         popup: resolve(__dirname, 'popup.html'),
         camera: resolve(__dirname, 'camera.html'),
         bulk: resolve(__dirname, 'bulk.html'),
+        generate: resolve(__dirname, 'generate.html'),
         guide: resolve(__dirname, 'guide.html'),
         background: resolve(__dirname, 'background/background.js'),
         content: resolve(__dirname, 'content/content.js'),

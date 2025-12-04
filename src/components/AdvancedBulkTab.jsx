@@ -37,6 +37,16 @@ import WebhookIcon from '@mui/icons-material/Webhook';
 import LinkIcon from '@mui/icons-material/Link';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import SpeedIcon from '@mui/icons-material/Speed';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import DataUsageIcon from '@mui/icons-material/DataUsage';
+import SearchIcon from '@mui/icons-material/Search';
+import SortIcon from '@mui/icons-material/Sort';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import HistoryIcon from '@mui/icons-material/History';
+import FolderIcon from '@mui/icons-material/Folder';
 import { trackAnalytics } from '../utils/analytics';
 import { fetchGoogleSheetData, isValidGoogleSheetsUrl, getShareInstructions } from '../utils/googleSheets';
 import { notifyBatchComplete, testWebhook, isValidWebhookUrl, saveWebhookConfig, getWebhookConfig } from '../utils/webhooks';
@@ -94,12 +104,22 @@ function AdvancedBulkTab({ theme }) {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookEnabled, setWebhookEnabled] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [generationSpeed, setGenerationSpeed] = useState(0);
+  const [statsData, setStatsData] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortDirection, setSortDirection] = useState('asc');
+  const [savedConfigs, setSavedConfigs] = useState([]);
+  const [configName, setConfigName] = useState('');
+  const [batchHistory, setBatchHistory] = useState([]);
   
   // Refs
   const fileInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
+  const dragCounterRef = useRef(0);
   
   // Theme Classes
   const isDark = theme === 'dark';
@@ -165,6 +185,208 @@ function AdvancedBulkTab({ theme }) {
       }
     }
   };
+
+  // Drag and Drop Handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const maxSizeInBytes = 10 * 1024 * 1024; // 10MB
+      
+      if (file.size > maxSizeInBytes) {
+        showNotification('error', `File too large. Maximum size is 10MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+        return;
+      }
+
+      const fileExtension = file.name.split('.').pop().toLowerCase();
+      if (fileExtension === 'csv') {
+        parseCSV(file);
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        parseExcel(file);
+      } else {
+        showNotification('error', 'Please drop a CSV or Excel file');
+      }
+    }
+  };
+
+  // Calculate Statistics
+  const calculateStats = (data) => {
+    if (!data || data.length === 0) return null;
+
+    const total = data.length;
+    const validRows = data.filter(row => row[selectedColumn] && row[selectedColumn].trim()).length;
+    const invalidRows = total - validRows;
+    
+    // Check for duplicates
+    const values = data.map(row => row[selectedColumn]).filter(Boolean);
+    const uniqueValues = new Set(values);
+    const duplicateCount = values.length - uniqueValues.size;
+    
+    // Estimate file size (rough calculation)
+    const avgQRSize = qrSize * qrSize * 4; // bytes per QR (rough estimate)
+    const estimatedSizeMB = (avgQRSize * validRows / (1024 * 1024)).toFixed(2);
+
+    return {
+      total,
+      valid: validRows,
+      invalid: invalidRows,
+      duplicates: duplicateCount,
+      unique: uniqueValues.size,
+      estimatedSizeMB,
+      columns: Object.keys(data[0] || {}).length
+    };
+  };
+
+  // Table Sorting and Filtering
+  const getFilteredAndSortedData = () => {
+    if (!bulkData || bulkData.length === 0) return [];
+    
+    let filtered = bulkData;
+    
+    // Apply search filter
+    if (searchTerm.trim()) {
+      filtered = filtered.filter(row => {
+        return Object.values(row).some(val => 
+          String(val).toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
+    }
+    
+    // Apply sorting
+    if (sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        const aVal = String(a[sortColumn] || '');
+        const bVal = String(b[sortColumn] || '');
+        
+        if (sortDirection === 'asc') {
+          return aVal.localeCompare(bVal);
+        } else {
+          return bVal.localeCompare(aVal);
+        }
+      });
+    }
+    
+    return filtered;
+  };
+
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Config Management
+  const saveConfiguration = () => {
+    if (!configName.trim()) {
+      showNotification('error', 'Please enter a configuration name');
+      return;
+    }
+
+    const config = {
+      name: configName,
+      timestamp: Date.now(),
+      qrSize,
+      errorCorrection,
+      foregroundColor,
+      backgroundColor,
+      logoSize,
+      selectedColumn,
+      customNamingPattern,
+      batchSize,
+      exportFormat,
+      pdfLayout,
+      labelPosition
+    };
+
+    chrome.storage.local.get(['bulkConfigs'], (result) => {
+      const configs = result.bulkConfigs || [];
+      configs.unshift(config);
+      chrome.storage.local.set({ bulkConfigs: configs.slice(0, 20) }, () => {
+        setSavedConfigs(configs.slice(0, 20));
+        setConfigName('');
+        showNotification('success', `Configuration "${config.name}" saved`);
+      });
+    });
+  };
+
+  const loadConfiguration = (config) => {
+    setQrSize(config.qrSize);
+    setErrorCorrection(config.errorCorrection);
+    setForegroundColor(config.foregroundColor);
+    setBackgroundColor(config.backgroundColor);
+    setLogoSize(config.logoSize);
+    setSelectedColumn(config.selectedColumn);
+    setCustomNamingPattern(config.customNamingPattern);
+    setBatchSize(config.batchSize);
+    setExportFormat(config.exportFormat);
+    setPdfLayout(config.pdfLayout);
+    setLabelPosition(config.labelPosition);
+    showNotification('success', `Configuration "${config.name}" loaded`);
+  };
+
+  const deleteConfiguration = (configName) => {
+    chrome.storage.local.get(['bulkConfigs'], (result) => {
+      const configs = (result.bulkConfigs || []).filter(c => c.name !== configName);
+      chrome.storage.local.set({ bulkConfigs: configs }, () => {
+        setSavedConfigs(configs);
+        showNotification('success', 'Configuration deleted');
+      });
+    });
+  };
+
+  // Batch History
+  const saveBatchToHistory = (batchInfo) => {
+    chrome.storage.local.get(['batchHistory'], (result) => {
+      const history = result.batchHistory || [];
+      history.unshift({
+        ...batchInfo,
+        timestamp: Date.now(),
+        id: Date.now().toString()
+      });
+      chrome.storage.local.set({ batchHistory: history.slice(0, 50) }, () => {
+        setBatchHistory(history.slice(0, 50));
+      });
+    });
+  };
+
+  // Load saved configs and history on mount
+  useEffect(() => {
+    chrome.storage.local.get(['bulkConfigs', 'batchHistory'], (result) => {
+      if (result.bulkConfigs) setSavedConfigs(result.bulkConfigs);
+      if (result.batchHistory) setBatchHistory(result.batchHistory);
+    });
+  }, []);
 
   // File Upload and Parsing
   const handleFileUpload = (event) => {
@@ -240,6 +462,10 @@ function AdvancedBulkTab({ theme }) {
     
     setSelectedColumn(detectedColumn);
     setBulkData(data);
+    
+    // Calculate and set statistics
+    const stats = calculateStats(data);
+    setStatsData(stats);
     
     // Validate data
     validateData(data, detectedColumn);
@@ -500,15 +726,24 @@ function AdvancedBulkTab({ theme }) {
     setBulkResults(results);
     
     if (!cancelledRef.current) {
-      showNotification('success', `Successfully generated ${results.length} QR codes!`);
+      const successCount = results.filter(r => r.dataURL).length;
+      showNotification('success', `Successfully generated ${successCount} QR codes!`);
       setActiveTab('results');
+      
+      // Save to batch history
+      saveBatchToHistory({
+        count: successCount,
+        duration: Math.floor((Date.now() - startTimeRef.current) / 1000),
+        format: exportFormat,
+        size: qrSize
+      });
       
       // Send webhook notification if enabled
       if (webhookEnabled && webhookUrl) {
         const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
         notifyBatchComplete(webhookUrl, {
           total: bulkData.length,
-          success: results.filter(r => r.dataURL).length,
+          success: successCount,
           failed: results.filter(r => !r.dataURL).length,
           duration
         }).then(success => {
@@ -771,18 +1006,63 @@ function AdvancedBulkTab({ theme }) {
             {/* Upload Tab */}
             {activeTab === 'upload' && (
               <div className="space-y-6 animate-fade-in">
+                {/* Quick Stats Dashboard */}
+                {statsData && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className={`${secondaryClass} p-4 rounded-md-xl`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <InsertDriveFileIcon fontSize="small" />
+                        <span className={`text-label-medium ${textSecondaryClass}`}>Total Rows</span>
+                      </div>
+                      <div className={`text-headline-small font-bold`}>{statsData.total}</div>
+                    </div>
+                    <div className={`${successClass} p-4 rounded-md-xl`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircleIcon fontSize="small" />
+                        <span className={`text-label-medium ${textSecondaryClass}`}>Valid</span>
+                      </div>
+                      <div className={`text-headline-small font-bold`}>{statsData.valid}</div>
+                    </div>
+                    {statsData.duplicates > 0 && (
+                      <div className={`${warningClass} p-4 rounded-md-xl`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <WarningIcon fontSize="small" />
+                          <span className={`text-label-medium ${textSecondaryClass}`}>Duplicates</span>
+                        </div>
+                        <div className={`text-headline-small font-bold`}>{statsData.duplicates}</div>
+                      </div>
+                    )}
+                    <div className={`${tertiaryClass} p-4 rounded-md-xl`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <DataUsageIcon fontSize="small" />
+                        <span className={`text-label-medium ${textSecondaryClass}`}>Est. Size</span>
+                      </div>
+                      <div className={`text-headline-small font-bold`}>{statsData.estimatedSizeMB} MB</div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <h2 className={`text-title-large font-semibold ${textClass} mb-4`}>
                     Upload Data File
                   </h2>
                   
-                  <div className={`border-2 border-dashed ${outlineClass} rounded-md-xl p-8 text-center`}>
-                    <UploadFileIcon className={textSecondaryClass} style={{ fontSize: 64 }} />
+                  <div 
+                    className={`border-2 border-dashed ${isDragging ? 'border-md-dark-primary bg-md-dark-primary bg-opacity-10' : outlineClass} rounded-md-xl p-8 text-center transition-all ${isDragging ? 'scale-105' : ''}`}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    <UploadFileIcon 
+                      className={isDragging ? `${isDark ? 'text-md-dark-primary' : 'text-md-light-primary'}` : textSecondaryClass} 
+                      style={{ fontSize: 64 }} 
+                    />
                     <p className={`text-title-medium ${textClass} mt-4 mb-2`}>
-                      Drop CSV or Excel file here
+                      {isDragging ? 'Drop your file here' : 'Drag & drop CSV or Excel file here'}
                     </p>
                     <p className={`text-body-medium ${textSecondaryClass} mb-4`}>
-                      or click to browse
+                      or click to browse (max 10MB, up to 2000 items)
                     </p>
                     <input
                       ref={fileInputRef}
@@ -794,7 +1074,7 @@ function AdvancedBulkTab({ theme }) {
                     />
                     <label
                       htmlFor="file-upload"
-                      className={`${primaryClass} px-6 py-3 rounded-md-lg font-medium cursor-pointer inline-flex items-center gap-2 state-layer hover:shadow-md-2`}
+                      className={`${primaryClass} px-6 py-3 rounded-md-lg font-medium cursor-pointer inline-flex items-center gap-2 state-layer hover:shadow-md-2 transition-all`}
                     >
                       <CloudDownloadIcon />
                       Choose File
@@ -802,7 +1082,8 @@ function AdvancedBulkTab({ theme }) {
                   </div>
 
                   <div className="mt-6">
-                    <h3 className={`text-title-medium ${textClass} mb-3`}>
+                    <h3 className={`text-title-medium ${textClass} mb-3 flex items-center gap-2`}>
+                      <TableChartIcon fontSize="small" />
                       Download CSV Templates
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1287,12 +1568,171 @@ function AdvancedBulkTab({ theme }) {
                     </div>
                   )}
                 </div>
+
+                {/* Configuration Management */}
+                <div className={`${secondaryClass} p-6 rounded-md-xl`}>
+                  <h3 className={`text-title-large font-semibold mb-4 flex items-center gap-2`}>
+                    <SaveIcon />
+                    Save & Load Configurations
+                  </h3>
+                  
+                  <div className="flex gap-3 mb-4">
+                    <input
+                      type="text"
+                      value={configName}
+                      onChange={(e) => setConfigName(e.target.value)}
+                      placeholder="Configuration name..."
+                      className={`flex-1 ${inputBgClass} border ${outlineClass} rounded-md-lg p-3 ${textClass}`}
+                    />
+                    <button
+                      onClick={saveConfiguration}
+                      disabled={!configName.trim()}
+                      className={`${primaryClass} px-6 py-3 rounded-md-lg font-medium flex items-center gap-2 state-layer hover:shadow-md-2 disabled:opacity-50`}
+                    >
+                      <SaveIcon />
+                      Save
+                    </button>
+                  </div>
+
+                  {savedConfigs.length > 0 && (
+                    <div className="space-y-2">
+                      <p className={`text-label-medium ${textSecondaryClass} mb-2`}>Saved Configurations:</p>
+                      {savedConfigs.map((config, index) => (
+                        <div key={index} className={`${cardClass} p-3 rounded-md-lg flex items-center justify-between`}>
+                          <div className="flex-1">
+                            <p className={`text-body-medium font-medium ${textClass}`}>{config.name}</p>
+                            <p className={`text-body-small ${textSecondaryClass}`}>
+                              {new Date(config.timestamp).toLocaleDateString()} - Size: {config.qrSize}px
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => loadConfiguration(config)}
+                              className={`${tertiaryClass} px-3 py-2 rounded-md-md text-label-small state-layer`}
+                            >
+                              Load
+                            </button>
+                            <button
+                              onClick={() => deleteConfiguration(config.name)}
+                              className={`${errorClass} px-3 py-2 rounded-md-md text-label-small state-layer`}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Batch History */}
+                {batchHistory.length > 0 && (
+                  <div className={`${tertiaryClass} p-6 rounded-md-xl`}>
+                    <h3 className={`text-title-large font-semibold mb-4 flex items-center gap-2`}>
+                      <HistoryIcon />
+                      Recent Batches
+                    </h3>
+                    <div className="space-y-2">
+                      {batchHistory.slice(0, 10).map((batch, index) => (
+                        <div key={batch.id} className={`${cardClass} p-3 rounded-md-lg`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`text-body-medium font-medium ${textClass}`}>
+                                {batch.count} QR Codes Generated
+                              </p>
+                              <p className={`text-body-small ${textSecondaryClass}`}>
+                                {new Date(batch.timestamp).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className={`${successClass} px-3 py-1 rounded-md-full text-label-small`}>
+                              Completed
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Preview Tab */}
             {activeTab === 'preview' && (
               <div className="space-y-6 animate-fade-in">
+                {/* Data Table with Search and Sort */}
+                {bulkData.length > 0 && (
+                  <div className={`${cardClass} rounded-md-xl overflow-hidden`}>
+                    <div className="p-4 border-b border-opacity-20 flex items-center justify-between">
+                      <h3 className={`text-title-medium font-semibold ${textClass}`}>
+                        Data Preview ({getFilteredAndSortedData().length} rows)
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <SearchIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${textSecondaryClass}`} fontSize="small" />
+                          <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search data..."
+                            className={`${inputBgClass} border ${outlineClass} rounded-md-lg pl-10 pr-4 py-2 ${textClass} focus:outline-none focus:ring-2 focus:ring-md-dark-primary`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="overflow-x-auto max-h-96">
+                      <table className="w-full">
+                        <thead className={`${surfaceClass} sticky top-0 z-10`}>
+                          <tr>
+                            <th className={`px-4 py-3 text-left text-label-small font-medium ${textSecondaryClass} uppercase tracking-wider`}>
+                              #
+                            </th>
+                            {availableColumns.map(column => (
+                              <th
+                                key={column}
+                                onClick={() => handleSort(column)}
+                                className={`px-4 py-3 text-left text-label-small font-medium ${textSecondaryClass} uppercase tracking-wider cursor-pointer hover:${textClass} transition-colors`}
+                              >
+                                <div className="flex items-center gap-1">
+                                  {column}
+                                  {sortColumn === column && (
+                                    sortDirection === 'asc' ? 
+                                      <ArrowUpwardIcon fontSize="inherit" /> : 
+                                      <ArrowDownwardIcon fontSize="inherit" />
+                                  )}
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-opacity-10">
+                          {getFilteredAndSortedData().slice(0, 100).map((row, index) => (
+                            <tr key={index} className={`hover:${secondaryClass} transition-colors`}>
+                              <td className={`px-4 py-3 text-body-small ${textSecondaryClass}`}>
+                                {index + 1}
+                              </td>
+                              {availableColumns.map(column => (
+                                <td key={column} className={`px-4 py-3 text-body-small ${textClass}`}>
+                                  <div className="max-w-xs truncate" title={row[column]}>
+                                    {row[column]}
+                                  </div>
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {getFilteredAndSortedData().length > 100 && (
+                      <div className={`p-3 text-center text-body-small ${textSecondaryClass} border-t border-opacity-20`}>
+                        Showing first 100 of {getFilteredAndSortedData().length} rows
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* QR Preview Section */}
                 <div className="flex justify-between items-center">
                   <h2 className={`text-title-large font-semibold ${textClass}`}>
                     Preview First 5 QR Codes
@@ -1337,7 +1777,7 @@ function AdvancedBulkTab({ theme }) {
                   </div>
                 )}
 
-                {previewData.length === 0 && (
+                {previewData.length === 0 && bulkData.length > 0 && (
                   <div className={`${secondaryClass} p-12 rounded-md-xl text-center`}>
                     <VisibilityIcon className={textSecondaryClass} style={{ fontSize: 64 }} />
                     <p className={`text-title-medium ${textClass} mt-4`}>

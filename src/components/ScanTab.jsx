@@ -38,8 +38,9 @@ import Alert from '@mui/material/Alert';
 import { parseQRContent } from '../utils/qrParsers';
 import { checkURLSafety, shouldShowConfirmation } from '../utils/urlSafety';
 import { trackAnalytics } from '../utils/analytics';
+import AddIcon from '@mui/icons-material/Add';
 
-function ScanTab({ theme }) {
+function ScanTab({ theme, onTabChange }) {
   const [scanning, setScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [results, setResults] = useState([]);
@@ -514,6 +515,59 @@ function ScanTab({ theme }) {
       console.error('Error fetching image:', err);
       setError('Error fetching image: ' + err.message);
       setScanning(false);
+    }
+  };
+
+  const generateQRForCurrentTab = async () => {
+    try {
+      // Query for the active tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      if (tab && tab.url) {
+        // Check if this is a chrome:// or extension URL
+        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+          setSnackbar({
+            open: true,
+            message: 'Cannot generate QR for Chrome internal pages',
+            severity: 'error'
+          });
+          return;
+        }
+
+        // Store the URL to be generated in storage
+        chrome.storage.local.set({ 
+          pendingGenerate: {
+            data: tab.url,
+            type: 'url',
+            title: tab.title || 'Current Tab'
+          }
+        }, () => {
+          // Switch to generate tab
+          if (onTabChange) {
+            onTabChange('generate');
+          }
+          
+          // Show success notification
+          setSnackbar({
+            open: true,
+            message: 'Switched to Generate tab with current URL',
+            severity: 'success'
+          });
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Unable to get current tab URL',
+          severity: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Error getting current tab:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to get current tab URL',
+        severity: 'error'
+      });
     }
   };
 
@@ -1387,6 +1441,21 @@ function ScanTab({ theme }) {
           {cameraActive ? <StopCircleIcon /> : <CameraAltIcon />}
           <span className="text-label-large">
             {cameraActive ? 'Stop' : 'Camera'}
+          </span>
+        </button>
+      </div>
+
+      {/* Generate QR for Current Tab */}
+      <div className="mt-3">
+        <button
+          onClick={generateQRForCurrentTab}
+          aria-label="Generate QR code for current tab URL"
+          className={`${tertiaryClass} py-3 px-4 rounded-md-full font-medium shadow-md-1 state-layer w-full flex items-center justify-center gap-2 transition-all hover:shadow-md-2`}
+        >
+          <AddIcon />
+          <QrCodeIcon />
+          <span className="text-label-large">
+            Generate QR for Current Tab
           </span>
         </button>
       </div>

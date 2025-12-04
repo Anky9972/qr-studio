@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdvancedBulkTab from './components/AdvancedBulkTab';
+import BuyMeCoffeeWidget from './components/BuyMeCoffeeWidget';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
@@ -79,6 +80,9 @@ function BulkApp() {
           </div>
         </div>
       </footer>
+
+      {/* Buy Me Coffee Widget - Always visible floating button */}
+      <BuyMeCoffeeWidget variant="floating" />
     </div>
   );
 }

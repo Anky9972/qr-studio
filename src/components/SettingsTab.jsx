@@ -416,7 +416,7 @@ function SettingsTab({ isDark }) {
         <div className="space-y-3">
           <div className={`p-4 rounded-md-lg ${isDark ? 'bg-md-dark-surface-variant' : 'bg-md-light-surface-variant'}`}>
             <p className={`text-body-medium ${textClass} mb-2`}>
-              <strong>QR Studio</strong> v2.0.0
+              <strong>QR Studio</strong> v2.1.0
             </p>
             <p className={`text-body-small ${textSecondaryClass}`}>
               A modern QR code scanner and generator with advanced features and accessibility support.

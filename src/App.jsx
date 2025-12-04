@@ -4,6 +4,7 @@ import GenerateTab from './components/GenerateTab';
 import HistoryTab from './components/HistoryTab';
 import AnalyticsTab from './components/AnalyticsTab';
 import SettingsTab from './components/SettingsTab';
+import BuyMeCoffeeWidget from './components/BuyMeCoffeeWidget';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import CreateIcon from '@mui/icons-material/Create';
 import HistoryIcon from '@mui/icons-material/History';
@@ -176,12 +177,15 @@ function App() {
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto" role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
-        {activeTab === 'scan' && <ScanTab theme={theme} />}
+        {activeTab === 'scan' && <ScanTab theme={theme} onTabChange={setActiveTab} />}
         {activeTab === 'generate' && <GenerateTab theme={theme} initialBulk={initialBulk} />}
         {activeTab === 'history' && <HistoryTab theme={theme} />}
         {activeTab === 'analytics' && <AnalyticsTab theme={theme} />}
         {activeTab === 'settings' && <SettingsTab isDark={isDark} />}
       </div>
+
+      {/* Buy Me Coffee Widget - Always visible floating button */}
+      <BuyMeCoffeeWidget variant="floating" />
     </div>
   );
 }
