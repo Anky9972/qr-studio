@@ -16,11 +16,14 @@ export default defineConfig({
           resolve(__dirname, 'dist/manifest.json')
         );
 
-        // Copy USER_GUIDE.md
-        copyFileSync(
-          resolve(__dirname, 'USER_GUIDE.md'),
-          resolve(__dirname, 'dist/USER_GUIDE.md')
-        );
+        // Copy USER_GUIDE.md if it exists
+        const userGuidePath = resolve(__dirname, 'USER_GUIDE.md');
+        if (existsSync(userGuidePath)) {
+          copyFileSync(
+            userGuidePath,
+            resolve(__dirname, 'dist/USER_GUIDE.md')
+          );
+        }
 
         // Copy camera.js
         copyFileSync(
