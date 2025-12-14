@@ -13,6 +13,10 @@ import InfoIcon from '@mui/icons-material/Info';
 import HelpIcon from '@mui/icons-material/Help';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import LanguageIcon from '@mui/icons-material/Language';
+import PersonIcon from '@mui/icons-material/Person';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 
 function SettingsTab({ isDark }) {
   // Settings state
@@ -24,7 +28,7 @@ function SettingsTab({ isDark }) {
   const [historyLimit, setHistoryLimit] = useState(5);
   const [defaultScanMode, setDefaultScanMode] = useState('auto');
   const [showNotifications, setShowNotifications] = useState(true);
-  
+
   // Theme classes
   const cardClass = isDark ? 'bg-md-dark-surface-container' : 'bg-md-light-surface-container';
   const primaryClass = isDark ? 'bg-md-dark-primary text-md-dark-on-primary' : 'bg-md-light-primary text-md-light-on-primary';
@@ -104,12 +108,12 @@ function SettingsTab({ isDark }) {
     if (soundEnabled) {
       playTestSound();
     }
-    
+
     // Test vibration
     if (vibrationEnabled && navigator.vibrate) {
       navigator.vibrate(200);
     }
-    
+
     // Test notification
     if (showNotifications) {
       alert('✓ Feedback test: Sound ' + (soundEnabled ? '✓' : '✗') + ', Vibration ' + (vibrationEnabled ? '✓' : '✗'));
@@ -123,16 +127,16 @@ function SettingsTab({ isDark }) {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
-      
+
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-      
+
       oscillator.frequency.value = 800;
       oscillator.type = 'sine';
-      
+
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-      
+
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
     } catch (error) {
@@ -173,7 +177,7 @@ function SettingsTab({ isDark }) {
       setHistoryLimit(5);
       setDefaultScanMode('auto');
       setShowNotifications(true);
-      
+
       chrome.storage.local.set({
         autoCopy: false,
         soundEnabled: true,
@@ -281,9 +285,8 @@ function SettingsTab({ isDark }) {
                 onClick={() => updateDefaultScanMode(mode)}
                 role="radio"
                 aria-checked={defaultScanMode === mode}
-                className={`py-2 px-3 rounded-md-md text-label-large font-medium state-layer transition-all ${
-                  defaultScanMode === mode ? primaryClass : secondaryClass
-                }`}
+                className={`py-2 px-3 rounded-md-md text-label-large font-medium state-layer transition-all ${defaultScanMode === mode ? primaryClass : secondaryClass
+                  }`}
               >
                 {mode === 'auto' ? 'Auto' : mode === 'qr' ? 'QR Only' : 'Barcode'}
               </button>
@@ -403,6 +406,92 @@ function SettingsTab({ isDark }) {
             <DeleteIcon />
             Clear All History
           </button>
+        </div>
+      </div>
+
+      {/* QR Studio Web - Premium Features */}
+      <div className="relative p-[2px] rounded-md-xl overflow-hidden" style={{
+        background: isDark
+          ? 'linear-gradient(135deg, #0ea5e9, #06b6d4, #3b82f6, #8b5cf6)'
+          : 'linear-gradient(135deg, #0284c7, #0891b2, #2563eb, #7c3aed)'
+      }}>
+        <div className={`${cardClass} p-5 rounded-md-xl relative`} style={{
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))'
+            : 'linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.98))'
+        }}>
+          {/* Glow effect */}
+          <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full blur-3xl opacity-30" style={{
+            background: 'radial-gradient(circle, #06b6d4, transparent)'
+          }}></div>
+
+          <div className="relative z-10">
+            <h3 className={`text-title-large font-medium ${textClass} mb-2 flex items-center gap-2`}>
+              <RocketLaunchIcon sx={{ color: '#06b6d4' }} />
+              Unlock Advanced Features
+            </h3>
+            <p className={`text-body-small ${textSecondaryClass} mb-4`}>
+              Access the full power of QR Studio on the web
+            </p>
+
+            {/* Features Grid */}
+            <div className="grid grid-cols-2 gap-2 mb-5">
+              {[
+                { icon: '🚀', text: 'Dynamic QR Codes' },
+                { icon: '📊', text: 'Advanced Analytics' },
+                { icon: '🎨', text: 'Full Customization' },
+                { icon: '📦', text: 'Bulk Generation' },
+                { icon: '👥', text: 'Team Collaboration' },
+                { icon: '🔐', text: 'Secure Cloud Storage' },
+              ].map((feature, i) => (
+                <div key={i} className={`flex items-center gap-2 text-body-small ${textSecondaryClass}`}>
+                  <span>{feature.icon}</span>
+                  <span>{feature.text}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              {/* Primary CTA */}
+              <button
+                onClick={() => chrome.tabs.create({ url: 'https://qrstudio.live/' })}
+                className="w-full py-3 px-4 rounded-md-full text-label-large font-medium flex items-center justify-center gap-2 transition-all hover:scale-[1.02] hover:shadow-lg"
+                style={{
+                  background: 'linear-gradient(135deg, #0ea5e9, #06b6d4)',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 20px rgba(6, 182, 212, 0.3)'
+                }}
+                aria-label="Open QR Studio Web"
+              >
+                <LanguageIcon />
+                Open QR Studio Web
+                <OpenInNewIcon fontSize="small" />
+              </button>
+
+              {/* Auth Buttons Row */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => chrome.tabs.create({ url: 'https://qrstudio.live/signin' })}
+                  className={`flex-1 py-2.5 px-4 rounded-md-full text-label-medium font-medium flex items-center justify-center gap-2 state-layer transition-all border ${isDark ? 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10' : 'border-cyan-600/30 text-cyan-600 hover:bg-cyan-500/10'
+                    }`}
+                  aria-label="Sign in to QR Studio"
+                >
+                  <PersonIcon fontSize="small" />
+                  Sign In
+                </button>
+                <button
+                  onClick={() => chrome.tabs.create({ url: 'https://qrstudio.live/signup' })}
+                  className={`flex-1 py-2.5 px-4 rounded-md-full text-label-medium font-medium flex items-center justify-center gap-2 transition-all ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-800/10 text-slate-800 hover:bg-slate-800/20'
+                    }`}
+                  aria-label="Get started with QR Studio"
+                >
+                  <PersonAddIcon fontSize="small" />
+                  Get Started Free
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
