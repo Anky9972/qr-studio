@@ -33,7 +33,7 @@ function App() {
         // Ensure we land on Generate if bulk requested
         setActiveTab('generate');
       }
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   useEffect(() => {
@@ -123,7 +123,11 @@ function App() {
       {/* Material 3 App Bar */}
       <div className={`${isDark ? 'bg-md-dark-surface-container-low' : 'bg-md-light-surface-container-low'} px-4 py-4 flex items-center justify-between shadow-md-2`} role="banner">
         <div className="flex items-center gap-3">
-          <QrCodeScannerIcon className={primaryClass} sx={{ fontSize: 28 }} />
+          <img
+            src="/assets/icons/icon32.png"
+            alt="QR Studio Logo"
+            className="w-7 h-7 rounded-md"
+          />
           <h1 className="text-title-large font-medium" id="app-title">QR Studio</h1>
         </div>
         <button
@@ -192,9 +196,9 @@ function App() {
 
 function NavButton({ active, onClick, icon, label, theme }) {
   const isDark = theme === 'dark';
-  const activeClass = active 
-    ? isDark 
-      ? 'bg-md-dark-secondary-container text-md-dark-on-secondary-container' 
+  const activeClass = active
+    ? isDark
+      ? 'bg-md-dark-secondary-container text-md-dark-on-secondary-container'
       : 'bg-md-light-secondary-container text-md-light-on-secondary-container'
     : isDark
       ? 'text-md-dark-on-surface-variant'
